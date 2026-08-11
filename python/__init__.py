@@ -1,0 +1,1 @@
+"""LeetCode template generator package."""

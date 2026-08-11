@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: leetcode-template-generator
+Version: 0.1.0
+Summary: Personal CLI for generating LeetCode solution files from configurable templates.
+Requires-Python: >=3.9

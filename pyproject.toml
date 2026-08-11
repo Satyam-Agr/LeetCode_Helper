@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leetcode-template-generator"
+version = "0.1.0"
+description = "Personal CLI for generating LeetCode solution files from configurable templates."
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+lcgen = "python.main:main"
+
+[tool.setuptools]
+packages = ["python"]

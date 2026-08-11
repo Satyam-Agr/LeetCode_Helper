@@ -1,0 +1,8 @@
+{
+  "language": "java",
+  "destination": "C:/FrontendPos/LeetcodeCLI/solutions",
+  "template": "// Problem: {title}\n// ID: {id}\n// Difficulty: {difficulty}\n\nimport java.util.*;\n{code}\n",
+  "filename": "{id}-{slug}",
+  "pad_id": 4,
+  "group_by_difficulty": true
+}

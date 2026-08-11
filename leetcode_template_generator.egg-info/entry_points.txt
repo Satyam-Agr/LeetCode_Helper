@@ -1,0 +1,2 @@
+[console_scripts]
+lcgen = python.main:main
