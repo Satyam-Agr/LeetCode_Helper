@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "LeetCode Template Generator",
+  "version": "0.1.0",
+  "description": "Send the current LeetCode problem URL to the VS Code helper.",
+  "permissions": ["activeTab"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "action": {
+    "default_title": "Generate LeetCode file",
+    "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
+}
