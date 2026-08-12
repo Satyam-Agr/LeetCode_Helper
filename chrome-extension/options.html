@@ -7,14 +7,121 @@
   </head>
   <body class="options">
     <main>
-      <h1>Settings</h1>
-      <p id="status" class="status">Loading settings...</p>
-      <label>
-        Settings JSON
-        <textarea id="settings"></textarea>
-      </label>
+      <header class="page-header">
+        <h1>LeetCode Generator Settings</h1>
+        <p id="status" class="status" role="status">Loading settings...</p>
+      </header>
+
+      <form id="settingsForm" novalidate>
+        <section>
+          <h2>Output</h2>
+          <div class="grid two">
+            <label>
+              Language
+              <select id="language" name="language" required>
+                <option value="java">Java</option>
+                <option value="python">Python</option>
+                <option value="cpp">C++</option>
+                <option value="javascript">JavaScript</option>
+                <option value="c">C</option>
+              </select>
+            </label>
+
+            <label>
+              Pad problem ID
+              <input id="padId" name="padId" type="number" min="0" max="20" step="1" required>
+            </label>
+          </div>
+
+          <div class="field-group">
+            <span class="field-label">Destination</span>
+            <div class="segmented">
+              <label>
+                <input id="destinationModeWorkspace" name="destinationMode" type="radio" value="workspace">
+                Workspace root
+              </label>
+              <label>
+                <input id="destinationModeSelected" name="destinationMode" type="radio" value="selected">
+                Selected folder
+              </label>
+            </div>
+          </div>
+
+          <div id="selectedDestinationField" class="field-group">
+            <label>
+              Destination folder
+              <input id="destination" name="destination" type="text" readonly spellcheck="false">
+            </label>
+            <button id="chooseDestination" type="button">Choose folder</button>
+          </div>
+
+          <label>
+            Filename pattern
+            <input id="filename" name="filename" type="text" required spellcheck="false">
+          </label>
+
+          <div class="checks">
+            <label class="check">
+              <input id="groupByDifficulty" name="groupByDifficulty" type="checkbox">
+              Group by difficulty
+            </label>
+            <label class="check">
+              <input id="openAfterCreate" name="openAfterCreate" type="checkbox">
+              Open file after create
+            </label>
+          </div>
+        </section>
+
+        <section>
+          <h2>Template</h2>
+          <label>
+            File template
+            <textarea id="template" name="template" required spellcheck="false"></textarea>
+          </label>
+        </section>
+
+        <section>
+          <div class="section-row">
+            <h2>Headers</h2>
+            <label class="check inline">
+              <input id="defaultHeaders" name="defaultHeaders" type="checkbox">
+              Enable headers
+            </label>
+          </div>
+
+          <div class="grid headers">
+            <label>
+              Java
+              <textarea id="headerJava" spellcheck="false"></textarea>
+            </label>
+            <label>
+              Python
+              <textarea id="headerPython" spellcheck="false"></textarea>
+            </label>
+            <label>
+              C++
+              <textarea id="headerCpp" spellcheck="false"></textarea>
+            </label>
+            <label>
+              JavaScript
+              <textarea id="headerJavascript" spellcheck="false"></textarea>
+            </label>
+            <label>
+              C
+              <textarea id="headerC" spellcheck="false"></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section>
+          <h2>Variables</h2>
+          <p class="hint">{id} {title} {slug} {difficulty} {tags} {language} {header} {code}</p>
+        </section>
+      </form>
+
       <div class="actions">
         <button id="reload" type="button">Reload</button>
+        <button id="reset" type="button">Reset</button>
         <button id="save" type="button">Save</button>
       </div>
     </main>

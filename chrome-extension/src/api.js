@@ -22,6 +22,14 @@ export async function saveSettings(settings) {
   return payload.settings;
 }
 
+export async function chooseDestinationFolder() {
+  const payload = await request("/choose-destination", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+  return payload.path;
+}
+
 async function request(path, options = {}) {
   let response;
   try {

@@ -31,22 +31,136 @@ h1 {
   line-height: 1.2;
 }
 
+h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+form,
+section,
 label {
   display: grid;
+}
+
+form {
+  gap: 16px;
+}
+
+section {
+  gap: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+label {
   gap: 6px;
   font-weight: 600;
 }
 
+.field-group {
+  display: grid;
+  gap: 8px;
+}
+
+.field-label {
+  font-weight: 600;
+}
+
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.segmented label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-weight: 500;
+}
+
+.segmented input {
+  width: 16px;
+}
+
+.hidden {
+  display: none;
+}
+
+input,
+select,
 textarea {
-  min-height: 420px;
-  resize: vertical;
   width: 100%;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  padding: 10px;
+  padding: 8px 10px;
   color: #111827;
   background: #ffffff;
+  font: inherit;
+}
+
+textarea {
+  min-height: 180px;
+  resize: vertical;
   font: 13px/1.45 Consolas, "Courier New", monospace;
+}
+
+input:invalid,
+select:invalid,
+textarea:invalid {
+  border-color: #ef4444;
+}
+
+.page-header,
+.section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.grid {
+  display: grid;
+  gap: 12px;
+}
+
+.grid.two,
+.grid.headers {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.check input {
+  width: 16px;
+}
+
+.check.inline {
+  white-space: nowrap;
+}
+
+.hint {
+  margin: 0;
+  color: #475569;
+  font: 13px/1.45 Consolas, "Courier New", monospace;
+  overflow-wrap: anywhere;
 }
 
 .status {
@@ -98,4 +212,17 @@ button {
 
 button:hover {
   background: #f1f5f9;
+}
+
+@media (max-width: 720px) {
+  .grid.two,
+  .grid.headers {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header,
+  .section-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
