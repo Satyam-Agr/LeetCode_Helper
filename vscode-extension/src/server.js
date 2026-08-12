@@ -2,8 +2,9 @@ const http = require("http");
 
 const MAX_BODY_BYTES = 32 * 1024;
 
-function createBridgeServer({ port, settingsStore, generateFromUrl, showResult, vscode }) {
+function createBridgeServer({ port, settingsStore, generateFromUrl, getWorkspaceRoot, showResult, vscode }) {
   let server = null;
+  let workspaceRoot = null;
 
   function start(showMessage) {
     if (server) {
@@ -13,6 +14,7 @@ function createBridgeServer({ port, settingsStore, generateFromUrl, showResult, 
       return;
     }
 
+    workspaceRoot = getWorkspaceRoot();
     server = http.createServer(handleRequest);
     server.on("error", (error) => {
       server = null;
@@ -33,6 +35,7 @@ function createBridgeServer({ port, settingsStore, generateFromUrl, showResult, 
 
     const current = server;
     server = null;
+    workspaceRoot = null;
     current.close();
   }
 
@@ -42,6 +45,10 @@ function createBridgeServer({ port, settingsStore, generateFromUrl, showResult, 
     } else {
       vscode.window.showWarningMessage("LeetCode browser bridge is not running.");
     }
+  }
+
+  function getServerWorkspaceRoot() {
+    return workspaceRoot;
   }
 
   async function handleRequest(request, response) {
@@ -58,7 +65,7 @@ function createBridgeServer({ port, settingsStore, generateFromUrl, showResult, 
 
       if (request.method === "POST" && url.pathname === "/generate") {
         const body = await readJsonBody(request);
-        const result = await generateFromUrl(body.url);
+        const result = await generateFromUrl(body.url, getServerWorkspaceRoot());
         showResult(result);
         sendJson(response, 200, { ok: true, ...result });
         return;
@@ -76,13 +83,30 @@ function createBridgeServer({ port, settingsStore, generateFromUrl, showResult, 
         return;
       }
 
+      if (request.method === "POST" && url.pathname === "/choose-destination") {
+        const selection = await vscode.window.showOpenDialog({
+          canSelectFiles: false,
+          canSelectFolders: true,
+          canSelectMany: false,
+          openLabel: "Select destination folder",
+        });
+
+        if (!selection?.[0]) {
+          sendJson(response, 400, { ok: false, error: "No destination folder selected." });
+          return;
+        }
+
+        sendJson(response, 200, { ok: true, path: selection[0].fsPath });
+        return;
+      }
+
       sendJson(response, 404, { ok: false, error: "Unknown endpoint." });
     } catch (error) {
       sendJson(response, 400, { ok: false, error: error.message });
     }
   }
 
-  return { start, stop, status };
+  return { start, stop, status, getWorkspaceRoot: getServerWorkspaceRoot };
 }
 
 function readJsonBody(request) {

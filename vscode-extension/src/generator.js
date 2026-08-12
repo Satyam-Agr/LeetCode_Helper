@@ -12,11 +12,11 @@ const EXTENSIONS = {
   python: ".py",
 };
 
-async function generateFromUrl(pageUrl, settingsStore) {
+async function generateFromUrl(pageUrl, settingsStore, workspaceRoot) {
   const slug = extractSlug(pageUrl);
   const problem = await fetchProblem(slug);
   const settings = normalizeSettings(settingsStore.getSettings());
-  const generated = buildGeneratedFile(problem, settings);
+  const generated = buildGeneratedFile(problem, settings, workspaceRoot);
   const existed = fs.existsSync(generated.path);
 
   if (!existed) {
@@ -39,7 +39,7 @@ async function generateFromUrl(pageUrl, settingsStore) {
   };
 }
 
-function buildGeneratedFile(problem, settings) {
+function buildGeneratedFile(problem, settings, workspaceRoot) {
   if (!EXTENSIONS[settings.language]) {
     throw new Error(`Unsupported language: ${settings.language}`);
   }
@@ -59,7 +59,11 @@ function buildGeneratedFile(problem, settings) {
   };
 
   const basename = cleanFileName(render(settings.filename, variables));
-  const root = resolveDestination(settings.destination);
+  if (!basename) {
+    throw new Error("Filename pattern rendered an invalid file name.");
+  }
+
+  const root = resolveDestination(settings, workspaceRoot);
   const directory = settings.groupByDifficulty
     ? path.join(root, cleanPathPart(problem.difficulty || "Unknown"))
     : root;
@@ -78,18 +82,36 @@ function normalizeSettings(settings) {
   };
 }
 
-function resolveDestination(destination) {
-  const trimmed = String(destination || "").trim();
-  if (path.isAbsolute(trimmed)) {
-    return path.resolve(trimmed);
+function resolveDestination(settings, workspaceRoot) {
+  if (settings.destinationMode === "selected") {
+    const selectedDestination = String(settings.destination || "").trim();
+    const selectedRoot = selectedDestination ? path.resolve(selectedDestination) : "";
+    if (selectedRoot && directoryExists(selectedRoot)) {
+      return selectedRoot;
+    }
   }
 
-  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-  if (!workspaceFolder) {
+  return resolveWorkspaceRoot(workspaceRoot);
+}
+
+function resolveWorkspaceRoot(workspaceRoot) {
+  if (!workspaceRoot) {
     throw new Error("Open a VS Code workspace before generating files.");
   }
 
-  return path.resolve(workspaceFolder.uri.fsPath, trimmed);
+  const resolved = path.resolve(workspaceRoot);
+  if (!directoryExists(resolved)) {
+    throw new Error("The workspace root detected when the bridge started no longer exists.");
+  }
+  return resolved;
+}
+
+function directoryExists(directoryPath) {
+  try {
+    return fs.statSync(directoryPath).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function findSnippet(problem, language) {

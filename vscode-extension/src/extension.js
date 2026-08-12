@@ -8,7 +8,7 @@ const { createSettingsStore } = require("./settingsStore");
 let bridge = null;
 let activeSettingsStore = null;
 
-function activate(context) {
+async function activate(context) {
   const settingsStore = createSettingsStore(context);
   activeSettingsStore = settingsStore;
   const { port } = readServerConfig();
@@ -16,10 +16,13 @@ function activate(context) {
   bridge = createBridgeServer({
     port,
     settingsStore,
-    generateFromUrl: (url) => generateFromUrl(url, settingsStore),
+    generateFromUrl: (url, workspaceRoot) => generateFromUrl(url, settingsStore, workspaceRoot),
+    getWorkspaceRoot,
     showResult,
     vscode,
   });
+
+  await settingsStore.repairInvalidDestinationOnBoot();
 
   context.subscriptions.push(
     vscode.commands.registerCommand("leetcodeGenerator.generateFromClipboard", generateFromClipboard),
@@ -54,7 +57,11 @@ async function bridgeGenerate(url) {
   if (!activeSettingsStore) {
     throw new Error("LeetCode browser bridge is not ready.");
   }
-  return generateFromUrl(url, activeSettingsStore);
+  return generateFromUrl(url, activeSettingsStore, bridge?.getWorkspaceRoot());
+}
+
+function getWorkspaceRoot() {
+  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || null;
 }
 
 function showResult(result) {

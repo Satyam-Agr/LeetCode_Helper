@@ -1,6 +1,7 @@
 const DEFAULT_SETTINGS = {
   language: "java",
-  destination: "LeetCode",
+  destinationMode: "workspace",
+  destination: "",
   template: "// Problem: {title}\n// ID: {id}\n// Difficulty: {difficulty}\n// Tags: {tags}\n\n{header}{code}\n",
   filename: "{id}-{slug}",
   padId: 4,
