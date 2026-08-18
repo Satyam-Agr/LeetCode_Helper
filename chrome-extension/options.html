@@ -8,7 +8,8 @@
   <body class="options">
     <main>
       <header class="page-header">
-        <h1>LeetCode Generator Settings</h1>
+        <span class="eyebrow">LEETCODE</span>
+        <h1>Generator Settings</h1>
         <p id="status" class="status" role="status">Loading settings...</p>
       </header>
 
@@ -49,10 +50,22 @@
 
           <div id="selectedDestinationField" class="field-group">
             <label>
-              Destination folder
+              Solution folder
               <input id="destination" name="destination" type="text" readonly spellcheck="false">
             </label>
             <button id="chooseDestination" type="button">Choose folder</button>
+          </div>
+
+          <div class="field-group">
+            <label>
+              Metadata folder
+              <input id="metadataDir" name="metadataDir" type="text" readonly spellcheck="false">
+            </label>
+            <div class="button-row">
+              <button id="chooseMetadata" type="button">Choose folder</button>
+              <button id="clearMetadata" type="button">Clear</button>
+            </div>
+            <p class="hint">Empty = VS Code workspace root. A .lch folder is created inside it.</p>
           </div>
 
           <label>
@@ -68,6 +81,10 @@
             <label class="check">
               <input id="openAfterCreate" name="openAfterCreate" type="checkbox">
               Open file after create
+            </label>
+            <label class="check">
+              <input id="autoOpenPushView" name="autoOpenPushView" type="checkbox">
+              Auto-open push view
             </label>
           </div>
         </section>
@@ -122,7 +139,7 @@
       <div class="actions">
         <button id="reload" type="button">Reload</button>
         <button id="reset" type="button">Reset</button>
-        <button id="save" type="button">Save</button>
+        <button id="save" type="button" class="primary">Save</button>
       </div>
     </main>
     <script type="module" src="src/options.js"></script>

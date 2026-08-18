@@ -1,10 +1,25 @@
 const http = require("http");
 
+const { createPushQueue } = require("./pushQueue");
+
 const MAX_BODY_BYTES = 32 * 1024;
 
-function createBridgeServer({ port, settingsStore, generateFromUrl, getWorkspaceRoot, showResult, vscode }) {
+// Thin HTTP layer: routing, CORS, JSON body parsing. All push/long-poll state
+// lives in pushQueue; all file logic lives in the injected generateFromUrl.
+function createBridgeServer({ port, settingsStore, generateFromUrl, getWorkspaceRoot, showResult, vscode, onBridgeStatusChange }) {
   let server = null;
   let workspaceRoot = null;
+  let listening = false;
+  let bindError = null;
+  const pushQueue = createPushQueue();
+
+  function notifyStatus() {
+    try {
+      onBridgeStatusChange?.(getStatusInfo());
+    } catch {
+      // ignore listener errors
+    }
+  }
 
   function start(showMessage) {
     if (server) {
@@ -18,10 +33,25 @@ function createBridgeServer({ port, settingsStore, generateFromUrl, getWorkspace
     server = http.createServer(handleRequest);
     server.on("error", (error) => {
       server = null;
-      vscode.window.showErrorMessage(`LeetCode browser bridge failed: ${error.message}`);
+      listening = false;
+      bindError = error;
+      notifyStatus();
+      if (error.code === "EADDRINUSE") {
+        // Another VS Code window already owns the bridge. This window is a secondary
+        // instance and cannot push; the sidebar shows a warning (see getStatusInfo).
+        vscode.window.showWarningMessage(
+          `LeetCode bridge port ${port} is already in use by another VS Code window. ` +
+            `Generate/Push works only from that first window.`
+        );
+      } else {
+        vscode.window.showErrorMessage(`LeetCode browser bridge failed: ${error.message}`);
+      }
     });
 
     server.listen(port, "127.0.0.1", () => {
+      listening = true;
+      bindError = null;
+      notifyStatus();
       if (showMessage) {
         vscode.window.showInformationMessage(`LeetCode browser bridge running on http://127.0.0.1:${port}`);
       }
@@ -29,10 +59,12 @@ function createBridgeServer({ port, settingsStore, generateFromUrl, getWorkspace
   }
 
   function stop() {
+    pushQueue.stop();
+    listening = false;
+    notifyStatus();
     if (!server) {
       return;
     }
-
     const current = server;
     server = null;
     workspaceRoot = null;
@@ -45,6 +77,11 @@ function createBridgeServer({ port, settingsStore, generateFromUrl, getWorkspace
     } else {
       vscode.window.showWarningMessage("LeetCode browser bridge is not running.");
     }
+  }
+
+  // { running, conflict } — conflict === true means another window owns the port.
+  function getStatusInfo() {
+    return { running: listening, conflict: Boolean(bindError && bindError.code === "EADDRINUSE") };
   }
 
   function getServerWorkspaceRoot() {
@@ -71,6 +108,21 @@ function createBridgeServer({ port, settingsStore, generateFromUrl, getWorkspace
         return;
       }
 
+      if (request.method === "GET" && url.pathname === "/pull") {
+        pushQueue.handlePull(
+          (payload) => sendJson(response, 200, payload),
+          (cleanup) => request.on("close", cleanup)
+        );
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/push-result") {
+        const body = await readJsonBody(request);
+        pushQueue.handleResult(body);
+        sendJson(response, 200, { ok: true });
+        return;
+      }
+
       if (request.method === "GET" && url.pathname === "/settings") {
         sendJson(response, 200, { ok: true, settings: settingsStore.getSettings() });
         return;
@@ -88,11 +140,11 @@ function createBridgeServer({ port, settingsStore, generateFromUrl, getWorkspace
           canSelectFiles: false,
           canSelectFolders: true,
           canSelectMany: false,
-          openLabel: "Select destination folder",
+          openLabel: "Select folder",
         });
 
         if (!selection?.[0]) {
-          sendJson(response, 400, { ok: false, error: "No destination folder selected." });
+          sendJson(response, 400, { ok: false, error: "No folder selected." });
           return;
         }
 
@@ -106,7 +158,14 @@ function createBridgeServer({ port, settingsStore, generateFromUrl, getWorkspace
     }
   }
 
-  return { start, stop, status, getWorkspaceRoot: getServerWorkspaceRoot };
+  return {
+    start,
+    stop,
+    status,
+    getWorkspaceRoot: getServerWorkspaceRoot,
+    pushCode: pushQueue.pushCode,
+    getStatusInfo,
+  };
 }
 
 function readJsonBody(request) {

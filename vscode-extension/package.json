@@ -1,14 +1,19 @@
 {
   "name": "leetcode-template-generator-vscode",
   "displayName": "LeetCode Template Generator Helper",
-  "description": "Receives LeetCode problem URLs from Chrome and creates templated solution files in VS Code.",
-  "version": "0.1.0",
+  "description": "Receives LeetCode problem URLs from Chrome and creates templated solution files in VS Code, and pushes code back to the LeetCode editor.",
+  "version": "1.0.0",
   "publisher": "local",
   "engines": {
     "vscode": "^1.90.0"
   },
-  "categories": ["Other"],
-  "activationEvents": ["*"],
+  "icon": "resources/icon128.png",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
   "main": "./src/extension.js",
   "contributes": {
     "commands": [
@@ -27,7 +32,29 @@
       {
         "command": "leetcodeGenerator.serverStatus",
         "title": "LeetCode Generator: Browser Bridge Status"
+      },
+      {
+        "command": "leetcodeGenerator.pushToLeetCode",
+        "title": "LeetCode Generator: Push To LeetCode"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "leetcodeGenerator",
+          "title": "LeetCode Generator",
+          "icon": "resources/icon512.png"
+        }
+      ]
+    },
+    "views": {
+      "leetcodeGenerator": [
+        {
+          "type": "webview",
+          "id": "leetcodeGenerator.pushView",
+          "name": "Push to LeetCode"
+        }
+      ]
+    }
   }
 }

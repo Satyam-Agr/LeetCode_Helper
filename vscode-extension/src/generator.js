@@ -3,29 +3,45 @@ const path = require("path");
 const vscode = require("vscode");
 
 const { extractSlug, fetchProblem, normalizeLanguage } = require("./leetcode");
+const { EXTENSIONS, render, cleanPathPart, cleanFileName, findSnippet } = require("./render");
 
-const EXTENSIONS = {
-  c: ".c",
-  cpp: ".cpp",
-  java: ".java",
-  javascript: ".js",
-  python: ".py",
-};
-
-async function generateFromUrl(pageUrl, settingsStore, workspaceRoot) {
+// Generate a solution file from a LeetCode problem URL, and write a ".lch"
+// metadata file alongside it (used later for pushing / resetting).
+async function generateFromUrl(pageUrl, { settingsStore, metaStore, workspaceRoot }) {
   const slug = extractSlug(pageUrl);
   const problem = await fetchProblem(slug);
   const settings = normalizeSettings(settingsStore.getSettings());
-  const generated = buildGeneratedFile(problem, settings, workspaceRoot);
-  const existed = fs.existsSync(generated.path);
+  const { solutionRoot, metadataParent } = await settingsStore.resolveUsablePaths(workspaceRoot);
+
+  const built = buildGeneratedFile(problem, settings, solutionRoot);
+  const existed = fs.existsSync(built.path);
 
   if (!existed) {
-    fs.mkdirSync(path.dirname(generated.path), { recursive: true });
-    fs.writeFileSync(generated.path, generated.content, { encoding: "utf8", flag: "wx" });
+    fs.mkdirSync(path.dirname(built.path), { recursive: true });
+    fs.writeFileSync(built.path, built.content, { encoding: "utf8", flag: "wx" });
   }
 
+  const canonicalUrl = `https://leetcode.com/problems/${problem.slug}/`;
+  const meta = {
+    version: 1,
+    url: canonicalUrl,
+    slug: problem.slug,
+    problemId: problem.id,
+    title: problem.title,
+    difficulty: problem.difficulty,
+    tags: problem.tags,
+    language: settings.language,
+    template: settings.template,
+    codeSnippet: built.snippetCode,
+    header: built.header,
+    content: built.content,
+    solutionPath: built.path,
+    createdAt: new Date().toISOString(),
+  };
+  const metaPath = await metaStore.writeMeta(metadataParent, built.path, meta);
+
   if (settings.openAfterCreate) {
-    const document = await vscode.workspace.openTextDocument(generated.path);
+    const document = await vscode.workspace.openTextDocument(built.path);
     await vscode.window.showTextDocument(document, { preview: false });
   }
 
@@ -34,12 +50,14 @@ async function generateFromUrl(pageUrl, settingsStore, workspaceRoot) {
     title: problem.title,
     problemId: problem.id,
     difficulty: problem.difficulty,
-    language: generated.languageName,
-    path: generated.path,
+    language: built.languageName,
+    path: built.path,
+    metaPath,
+    url: canonicalUrl,
   };
 }
 
-function buildGeneratedFile(problem, settings, workspaceRoot) {
+function buildGeneratedFile(problem, settings, solutionRoot) {
   if (!EXTENSIONS[settings.language]) {
     throw new Error(`Unsupported language: ${settings.language}`);
   }
@@ -63,15 +81,16 @@ function buildGeneratedFile(problem, settings, workspaceRoot) {
     throw new Error("Filename pattern rendered an invalid file name.");
   }
 
-  const root = resolveDestination(settings, workspaceRoot);
   const directory = settings.groupByDifficulty
-    ? path.join(root, cleanPathPart(problem.difficulty || "Unknown"))
-    : root;
+    ? path.join(solutionRoot, cleanPathPart(problem.difficulty || "Unknown"))
+    : solutionRoot;
 
   return {
     path: path.join(directory, `${basename}${EXTENSIONS[settings.language]}`),
     content: render(settings.template, variables),
     languageName: snippet.lang,
+    snippetCode: snippet.code,
+    header,
   };
 }
 
@@ -80,75 +99,6 @@ function normalizeSettings(settings) {
     ...settings,
     language: normalizeLanguage(settings.language),
   };
-}
-
-function resolveDestination(settings, workspaceRoot) {
-  if (settings.destinationMode === "selected") {
-    const selectedDestination = String(settings.destination || "").trim();
-    const selectedRoot = selectedDestination ? path.resolve(selectedDestination) : "";
-    if (selectedRoot && directoryExists(selectedRoot)) {
-      return selectedRoot;
-    }
-  }
-
-  return resolveWorkspaceRoot(workspaceRoot);
-}
-
-function resolveWorkspaceRoot(workspaceRoot) {
-  if (!workspaceRoot) {
-    throw new Error("Open a VS Code workspace before generating files.");
-  }
-
-  const resolved = path.resolve(workspaceRoot);
-  if (!directoryExists(resolved)) {
-    throw new Error("The workspace root detected when the bridge started no longer exists.");
-  }
-  return resolved;
-}
-
-function directoryExists(directoryPath) {
-  try {
-    return fs.statSync(directoryPath).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-function findSnippet(problem, language) {
-  const bySlug = problem.snippets.find((snippet) => normalizeLanguage(snippet.langSlug) === language);
-  if (bySlug) {
-    return bySlug;
-  }
-
-  const byName = problem.snippets.find((snippet) => normalizeLanguage(snippet.lang) === language);
-  if (byName) {
-    return byName;
-  }
-
-  throw new Error(`Missing ${language} snippet for this problem.`);
-}
-
-function render(template, variables) {
-  return String(template || "").replace(/\{([a-z_]+)\}/g, (match, name) => {
-    if (!Object.prototype.hasOwnProperty.call(variables, name)) {
-      throw new Error(`Unknown template variable: ${match}`);
-    }
-    return variables[name];
-  });
-}
-
-function cleanPathPart(value) {
-  return String(value || "")
-    .replace(/[<>:"/\\|?*]+/g, "-")
-    .replace(/[. ]+$/g, "")
-    .trim();
-}
-
-function cleanFileName(value) {
-  return String(value || "")
-    .replace(/[<>:"/\\|?*]+/g, "-")
-    .replace(/[. ]+$/g, "")
-    .trim();
 }
 
 module.exports = { generateFromUrl };

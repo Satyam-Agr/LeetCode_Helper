@@ -1,4 +1,16 @@
-const DEFAULT_SETTINGS = {
+export const SUPPORTED_LANGUAGES = new Set(["java", "python", "cpp", "javascript", "c"]);
+export const TEMPLATE_VARIABLES = new Set([
+  "id",
+  "title",
+  "slug",
+  "difficulty",
+  "tags",
+  "language",
+  "header",
+  "code",
+]);
+
+export const DEFAULT_SETTINGS = {
   language: "java",
   destinationMode: "workspace",
   destination: "",
@@ -8,6 +20,8 @@ const DEFAULT_SETTINGS = {
   padId: 4,
   groupByDifficulty: true,
   defaultHeaders: true,
+  openAfterCreate: true,
+  autoOpenPushView: false,
   languageHeaders: {
     java: "import java.util.*;\n\n",
     python: "from typing import List, Optional\n\n",
@@ -15,8 +29,4 @@ const DEFAULT_SETTINGS = {
     javascript: "",
     c: "#include <stdio.h>\n#include <stdlib.h>\n#include <stdbool.h>\n#include <string.h>\n\n",
   },
-  openAfterCreate: true,
-  autoOpenPushView: false,
 };
-
-module.exports = { DEFAULT_SETTINGS };

@@ -7,6 +7,7 @@ const ALLOWED_KEYS = new Set([
   "language",
   "destinationMode",
   "destination",
+  "metadataDir",
   "template",
   "filename",
   "padId",
@@ -14,6 +15,7 @@ const ALLOWED_KEYS = new Set([
   "defaultHeaders",
   "languageHeaders",
   "openAfterCreate",
+  "autoOpenPushView",
 ]);
 const DESTINATION_MODES = new Set(["workspace", "selected"]);
 
@@ -49,13 +51,15 @@ function sanitizeSettings(settings, options = {}) {
   const sanitized = {
     language: normalizeLanguage(merged.language),
     destinationMode: sanitizeDestinationMode(merged.destinationMode),
-    destination: sanitizeDestination(merged.destination),
+    destination: sanitizePath(merged.destination, "destination"),
+    metadataDir: sanitizePath(merged.metadataDir, "metadataDir"),
     template: requireString(merged.template, "template"),
     filename: requireString(merged.filename, "filename").trim(),
     padId: requireInteger(merged.padId, "padId", 0, 20),
     groupByDifficulty: requireBoolean(merged.groupByDifficulty, "groupByDifficulty"),
     defaultHeaders: requireBoolean(merged.defaultHeaders, "defaultHeaders"),
     openAfterCreate: requireBoolean(merged.openAfterCreate, "openAfterCreate"),
+    autoOpenPushView: requireBoolean(merged.autoOpenPushView, "autoOpenPushView"),
     languageHeaders: sanitizeHeaders(merged.languageHeaders),
   };
 
@@ -67,10 +71,14 @@ function sanitizeSettings(settings, options = {}) {
     sanitized.destinationMode = "workspace";
   }
 
-  if (sanitized.destinationMode === "selected" && options.validateDestinationExists) {
-    if (!options.destinationExists?.(sanitized.destination)) {
+  // Clear paths that no longer exist so the options page shows an empty field.
+  if (options.validateDestinationExists) {
+    if (sanitized.destinationMode === "selected" && !options.destinationExists?.(sanitized.destination)) {
       sanitized.destinationMode = "workspace";
       sanitized.destination = "";
+    }
+    if (sanitized.metadataDir && !options.destinationExists?.(sanitized.metadataDir)) {
+      sanitized.metadataDir = "";
     }
   }
 
@@ -102,17 +110,16 @@ function sanitizeDestinationMode(value) {
   return value;
 }
 
-function sanitizeDestination(value) {
+function sanitizePath(value, name) {
   if (value === undefined || value === null) {
     return "";
   }
   if (typeof value !== "string") {
-    throw new Error("destination must be a string.");
+    throw new Error(`${name} must be a string.`);
   }
-
   const trimmed = value.trim();
   if (/[\0<>|?*]/.test(trimmed)) {
-    throw new Error("destination contains invalid path characters.");
+    throw new Error(`${name} contains invalid path characters.`);
   }
   return trimmed;
 }

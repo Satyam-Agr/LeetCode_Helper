@@ -1,4 +1,5 @@
-import { chooseDestinationFolder, getSettings, saveSettings } from "./api.js";
+import { chooseFolder, getSettings, saveSettings } from "./http.js";
+import { DEFAULT_SETTINGS, SUPPORTED_LANGUAGES, TEMPLATE_VARIABLES } from "./options.defaults.js";
 
 const statusEl = document.querySelector("#status");
 const formEl = document.querySelector("#settingsForm");
@@ -7,39 +8,21 @@ const resetButton = document.querySelector("#reset");
 const saveButton = document.querySelector("#save");
 const chooseDestinationButton = document.querySelector("#chooseDestination");
 const selectedDestinationField = document.querySelector("#selectedDestinationField");
-
-const DEFAULT_SETTINGS = {
-  language: "java",
-  destinationMode: "workspace",
-  destination: "",
-  template: "// Problem: {title}\n// ID: {id}\n// Difficulty: {difficulty}\n// Tags: {tags}\n\n{header}{code}\n",
-  filename: "{id}-{slug}",
-  padId: 4,
-  groupByDifficulty: true,
-  defaultHeaders: true,
-  openAfterCreate: true,
-  languageHeaders: {
-    java: "import java.util.*;\n\n",
-    python: "from typing import List, Optional\n\n",
-    cpp: "#include <bits/stdc++.h>\nusing namespace std;\n\n",
-    javascript: "",
-    c: "#include <stdio.h>\n#include <stdlib.h>\n#include <stdbool.h>\n#include <string.h>\n\n",
-  },
-};
-
-const SUPPORTED_LANGUAGES = new Set(["java", "python", "cpp", "javascript", "c"]);
-const TEMPLATE_VARIABLES = new Set(["id", "title", "slug", "difficulty", "tags", "language", "header", "code"]);
+const chooseMetadataButton = document.querySelector("#chooseMetadata");
+const clearMetadataButton = document.querySelector("#clearMetadata");
 
 const fields = {
   language: document.querySelector("#language"),
   destinationModeWorkspace: document.querySelector("#destinationModeWorkspace"),
   destinationModeSelected: document.querySelector("#destinationModeSelected"),
   destination: document.querySelector("#destination"),
+  metadataDir: document.querySelector("#metadataDir"),
   filename: document.querySelector("#filename"),
   padId: document.querySelector("#padId"),
   groupByDifficulty: document.querySelector("#groupByDifficulty"),
   defaultHeaders: document.querySelector("#defaultHeaders"),
   openAfterCreate: document.querySelector("#openAfterCreate"),
+  autoOpenPushView: document.querySelector("#autoOpenPushView"),
   template: document.querySelector("#template"),
   headerJava: document.querySelector("#headerJava"),
   headerPython: document.querySelector("#headerPython"),
@@ -52,6 +35,8 @@ reloadButton.addEventListener("click", load);
 resetButton.addEventListener("click", reset);
 saveButton.addEventListener("click", save);
 chooseDestinationButton.addEventListener("click", chooseDestination);
+chooseMetadataButton.addEventListener("click", chooseMetadata);
+clearMetadataButton.addEventListener("click", clearMetadata);
 formEl.addEventListener("input", () => {
   updateDestinationVisibility();
   validateForm(false);
@@ -91,17 +76,34 @@ async function save() {
 }
 
 async function chooseDestination() {
-  setStatus("Choosing destination folder...");
+  setStatus("Choosing solution folder...");
   try {
-    const destination = await chooseDestinationFolder();
+    const destination = await chooseFolder();
     fields.destinationModeSelected.checked = true;
     fields.destination.value = destination;
     updateDestinationVisibility();
     validateForm(false);
-    setStatus("Destination folder selected.");
+    setStatus("Solution folder selected.");
   } catch (error) {
     setStatus(error.message, true);
   }
+}
+
+async function chooseMetadata() {
+  setStatus("Choosing metadata folder...");
+  try {
+    fields.metadataDir.value = await chooseFolder();
+    validateForm(false);
+    setStatus("Metadata folder selected.");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+function clearMetadata() {
+  fields.metadataDir.value = "";
+  validateForm(false);
+  setStatus("Metadata folder cleared. It will use the workspace root.");
 }
 
 function reset() {
@@ -124,11 +126,13 @@ function fillForm(settings) {
   fields.destinationModeWorkspace.checked = merged.destinationMode !== "selected";
   fields.destinationModeSelected.checked = merged.destinationMode === "selected";
   fields.destination.value = merged.destination;
+  fields.metadataDir.value = merged.metadataDir;
   fields.filename.value = merged.filename;
   fields.padId.value = String(merged.padId);
   fields.groupByDifficulty.checked = Boolean(merged.groupByDifficulty);
   fields.defaultHeaders.checked = Boolean(merged.defaultHeaders);
   fields.openAfterCreate.checked = Boolean(merged.openAfterCreate);
+  fields.autoOpenPushView.checked = Boolean(merged.autoOpenPushView);
   fields.template.value = merged.template;
   fields.headerJava.value = merged.languageHeaders.java || "";
   fields.headerPython.value = merged.languageHeaders.python || "";
@@ -144,12 +148,14 @@ function readForm() {
     language: fields.language.value,
     destinationMode,
     destination: destinationMode === "selected" ? fields.destination.value.trim() : "",
+    metadataDir: fields.metadataDir.value.trim(),
     template: fields.template.value,
     filename: fields.filename.value.trim(),
     padId: Number(fields.padId.value),
     groupByDifficulty: fields.groupByDifficulty.checked,
     defaultHeaders: fields.defaultHeaders.checked,
     openAfterCreate: fields.openAfterCreate.checked,
+    autoOpenPushView: fields.autoOpenPushView.checked,
     languageHeaders: {
       java: fields.headerJava.value,
       python: fields.headerPython.value,
@@ -168,9 +174,13 @@ function validateForm(showBrowserMessages) {
   }
 
   if (fields.destinationModeSelected.checked && !fields.destination.value.trim()) {
-    fields.destination.setCustomValidity("Choose a destination folder or use workspace root.");
+    fields.destination.setCustomValidity("Choose a solution folder or use workspace root.");
   } else if (/[\0<>|?*]/.test(fields.destination.value)) {
-    fields.destination.setCustomValidity("Destination contains invalid path characters.");
+    fields.destination.setCustomValidity("Solution folder contains invalid path characters.");
+  }
+
+  if (/[\0<>|?*]/.test(fields.metadataDir.value)) {
+    fields.metadataDir.setCustomValidity("Metadata folder contains invalid path characters.");
   }
 
   if (!fields.filename.value.trim()) {

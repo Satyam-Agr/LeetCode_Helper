@@ -1,4 +1,5 @@
-import { generateFile } from "./api.js";
+import { generateFile } from "./http.js";
+import { validateLeetCodeProblemUrl } from "./leetcodeUrl.js";
 
 const statusEl = document.querySelector("#status");
 const detailsEl = document.querySelector("#details");
@@ -11,7 +12,7 @@ retryButton.addEventListener("click", run);
 run();
 
 async function run() {
-  setStatus("Checking current tab...");
+  setStatus("Checking current tab...", true);
   setDetails("", "");
   retryButton.hidden = true;
 
@@ -23,7 +24,7 @@ async function run() {
 
     validateLeetCodeProblemUrl(tab.url);
 
-    setStatus("Sending to VS Code...");
+    setStatus("Sending to VS Code...", true);
     const result = await generateFile(tab.url);
 
     setStatus(result.status === "skipped" ? "File already exists." : "File created.");
@@ -34,8 +35,9 @@ async function run() {
   }
 }
 
-function setStatus(message) {
+function setStatus(message, busy = false) {
   statusEl.textContent = message;
+  statusEl.classList.toggle("busy", busy);
 }
 
 function setDetails(problem, output) {
@@ -55,27 +57,4 @@ function getActiveTab() {
       }
     });
   });
-}
-
-function validateLeetCodeProblemUrl(pageUrl) {
-  let parsed;
-  try {
-    parsed = new URL(pageUrl);
-  } catch {
-    throw new Error("This tab does not have a valid URL.");
-  }
-
-  const host = parsed.hostname.toLowerCase();
-  if (host !== "leetcode.com" && host !== "www.leetcode.com") {
-    throw new Error("Open a LeetCode problem page first.");
-  }
-
-  const parts = parsed.pathname.split("/").filter(Boolean);
-  if (parts.length < 2 || parts[0] !== "problems") {
-    throw new Error("This is LeetCode, but not a problem page.");
-  }
-
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(parts[1])) {
-    throw new Error("Could not extract a valid problem slug.");
-  }
 }
