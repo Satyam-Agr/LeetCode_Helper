@@ -18,10 +18,10 @@ export const DEFAULT_SETTINGS = {
   template: "// Problem: {title}\n// ID: {id}\n// Difficulty: {difficulty}\n// Tags: {tags}\n\n{header}{code}\n",
   filename: "{id}-{slug}",
   padId: 4,
-  groupByDifficulty: true,
+  groupByDifficulty: false,
   defaultHeaders: true,
   openAfterCreate: true,
-  autoOpenPushView: false,
+  autoOpenPushView: true,
   languageHeaders: {
     java: "import java.util.*;\n\n",
     python: "from typing import List, Optional\n\n",

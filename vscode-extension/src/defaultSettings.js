@@ -6,7 +6,7 @@ const DEFAULT_SETTINGS = {
   template: "// Problem: {title}\n// ID: {id}\n// Difficulty: {difficulty}\n// Tags: {tags}\n\n{header}{code}\n",
   filename: "{id}-{slug}",
   padId: 4,
-  groupByDifficulty: true,
+  groupByDifficulty: false,
   defaultHeaders: true,
   languageHeaders: {
     java: "import java.util.*;\n\n",
@@ -16,7 +16,7 @@ const DEFAULT_SETTINGS = {
     c: "#include <stdio.h>\n#include <stdlib.h>\n#include <stdbool.h>\n#include <string.h>\n\n",
   },
   openAfterCreate: true,
-  autoOpenPushView: false,
+  autoOpenPushView: true,
 };
 
 module.exports = { DEFAULT_SETTINGS };
