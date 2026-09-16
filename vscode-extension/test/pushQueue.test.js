@@ -4,9 +4,17 @@ const assert = require("node:assert/strict");
 const { createPushQueue } = require("../src/pushQueue");
 
 function pullOnce(queue) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    // A real long-poll socket keeps the extension host alive. This test has no
+    // socket, while the queue intentionally unrefs its hold timer, so retain a
+    // guard timer until the simulated pull completes.
+    const guard = setTimeout(() => {
+      reject(new Error("Timed out waiting for the simulated browser pull."));
+    }, 1000);
+
     queue.handlePull(
       (payload) => {
+        clearTimeout(guard);
         resolve(payload);
         return true;
       },
