@@ -50,7 +50,7 @@ jobs:
           node scripts/validate-release.mjs --tag "$RELEASE_TAG"
 
       - name: Download tested packages
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: release-packages
           path: dist
