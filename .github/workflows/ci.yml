@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Stable release tag to validate against the package versions
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_tag || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            chrome-extension/package-lock.json
+            vscode-extension/package-lock.json
+
+      - name: Install Chrome extension dependencies
+        run: npm ci --prefix chrome-extension
+
+      - name: Install VS Code extension dependencies
+        run: npm ci --prefix vscode-extension
+
+      - name: Validate synchronized release metadata
+        run: node scripts/validate-release.mjs --tag "${{ inputs.release_tag }}"
+
+      - name: Test release utilities
+        run: node --test scripts/release-tools.test.mjs
+
+      - name: Check and test Chrome extension
+        run: |
+          npm run check --prefix chrome-extension
+          npm test --prefix chrome-extension
+
+      - name: Check and test VS Code extension
+        run: |
+          npm run check --prefix vscode-extension
+          npm test --prefix vscode-extension
+
+  chrome-e2e:
+    name: Chrome end-to-end
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_tag || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: chrome-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix chrome-extension
+
+      - name: Install Chromium and system dependencies
+        working-directory: chrome-extension
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser tests
+        run: npm run test:e2e --prefix chrome-extension
+
+      - name: Upload browser report after a failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: chrome-extension/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  package:
+    name: Package and inspect
+    needs: [quality, chrome-e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_tag || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+
+      - name: Install VS Code packaging dependencies
+        run: npm ci --prefix vscode-extension
+
+      - name: Validate release metadata
+        run: node scripts/validate-release.mjs --tag "${{ inputs.release_tag }}"
+
+      - name: Stage and package Chrome extension
+        run: |
+          node scripts/stage-chrome.mjs
+          cd dist/chrome-extension
+          zip -q -r ../leetcode-helper-chrome.zip .
+
+      - name: Package VS Code extension
+        run: npm run package --prefix vscode-extension -- --out ../dist/leetcode-helper-vscode.vsix
+
+      - name: Inspect package contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(unzip -Z1 dist/leetcode-helper-chrome.zip | head -n 1)" != "chrome-extension/"
+          unzip -Z1 dist/leetcode-helper-chrome.zip | grep -qx "manifest.json"
+          if unzip -Z1 dist/leetcode-helper-chrome.zip | grep -Eq '(^|/)(node_modules|test|e2e|test-results|playwright-report|\.git)(/|$)'; then
+            echo "Chrome package contains development files." >&2
+            exit 1
+          fi
+          unzip -Z1 dist/leetcode-helper-vscode.vsix | grep -qx "extension/src/metadataSchema.js"
+          if unzip -Z1 dist/leetcode-helper-vscode.vsix | grep -Eq '(^|/)(node_modules|test|\.git)(/|$)'; then
+            echo "VSIX contains development files." >&2
+            exit 1
+          fi
+          unzip -p dist/leetcode-helper-chrome.zip manifest.json > dist/chrome-manifest.json
+          unzip -p dist/leetcode-helper-vscode.vsix extension/package.json > dist/vscode-package.json
+          node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync("dist/chrome-manifest.json")); const v=JSON.parse(fs.readFileSync("dist/vscode-package.json")); if(c.version!==v.version) throw new Error(`Packaged version mismatch: ${c.version} / ${v.version}`);'
+          rm dist/chrome-manifest.json dist/vscode-package.json
+
+      - name: Generate and verify checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum leetcode-helper-chrome.zip leetcode-helper-vscode.vsix > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+
+      - name: Upload packages
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: |
+            dist/leetcode-helper-chrome.zip
+            dist/leetcode-helper-vscode.vsix
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

@@ -2,8 +2,13 @@
   "name": "leetcode-template-generator-vscode",
   "displayName": "LeetCode Template Generator Helper",
   "description": "Receives LeetCode problem URLs from Chrome and creates templated solution files in VS Code, and pushes code back to the LeetCode editor.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "local",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Satyam-Agr/LeetCode_Helper.git"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -12,9 +17,25 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "onStartupFinished",
+    "onCommand:leetcodeGenerator.generateFromClipboard",
+    "onCommand:leetcodeGenerator.startServer",
+    "onCommand:leetcodeGenerator.stopServer",
+    "onCommand:leetcodeGenerator.serverStatus",
+    "onCommand:leetcodeGenerator.pushToLeetCode",
+    "onCommand:leetcodeGenerator.rotatePairingToken",
+    "onCommand:leetcodeGenerator.runDiagnostics",
+    "onView:leetcodeGenerator.pushView"
   ],
   "main": "./src/extension.js",
+  "scripts": {
+    "package": "vsce package",
+    "test": "node --test test/*.test.js",
+    "check": "node --check src/extension.js && node --check src/server.js && node --check src/protocol.js && node --check src/pairingStore.js && node --check src/diagnostics.js && node --check src/leetcode.js && node --check src/generator.js && node --check src/settingsStore.js && node --check src/metadataSchema.js && node --check src/metaStore.js && node --check src/pushQueue.js && node --check src/pushView.js && node --check src/pushViewHtml.js && node --check src/codeExtract.js && node --check src/render.js && node --check src/validate.js"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "4.0.0"
+  },
   "contributes": {
     "commands": [
       {
@@ -36,6 +57,14 @@
       {
         "command": "leetcodeGenerator.pushToLeetCode",
         "title": "LeetCode Generator: Push To LeetCode"
+      },
+      {
+        "command": "leetcodeGenerator.rotatePairingToken",
+        "title": "LeetCode Helper: Rotate Local Authentication Token"
+      },
+      {
+        "command": "leetcodeGenerator.runDiagnostics",
+        "title": "LeetCode Helper: Run Diagnostics"
       }
     ],
     "viewsContainers": {

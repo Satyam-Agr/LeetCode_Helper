@@ -3,3 +3,6 @@ build/
 *.zip
 *.crx
 *.pem
+node_modules/
+test-results/
+playwright-report/

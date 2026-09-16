@@ -1,9 +1,16 @@
 {
   "manifest_version": 3,
   "name": "LeetCode Template Generator",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5rW1NLjKaJcT077Cl3kb3AO4wa1spV2duoiSWk2CXCiL47fGeQK3qhhuqqnss8eAj6G5xBdbYdXS+jAO3nj2qi2hJqxxf9YMeCMXF/zrqhxJUiRQwpYJNknCQkSbif+wefmfkRysgPM4+w1BOthS/3gsVcp4CDFfOgf0h+LoR/gh8Jcau8dPmQtjF6c7fjpFnnu8mOH32mCMy2bJgSFL/VJnbKhvw9BokRJlWEvHaWkZXULBPw8R+3iIgdISHJpiZrARTK4dhovNEL+/c0HXeZQ4T1jccfp2FZXJv7kr3GsSqAaEJXkYtn/9jrXGMxwZ2UIlYS6Rn7rofETvQGgYqQIDAQAB",
   "description": "Send the current LeetCode problem URL to the VS Code helper, and push code back into the LeetCode editor.",
-  "permissions": ["activeTab", "scripting", "tabs", "alarms"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs",
+    "alarms",
+    "storage"
+  ],
   "host_permissions": [
     "http://127.0.0.1/*",
     "http://localhost/*",
@@ -15,8 +22,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Generate LeetCode file",
-    "default_popup": "popup.html"
+    "default_title": "Generate LeetCode file"
   },
   "options_ui": {
     "page": "options.html",

@@ -1,4 +1,9 @@
-import { chooseFolder, getSettings, saveSettings } from "./http.js";
+import {
+  chooseFolder,
+  getBridgeHealth,
+  getSettings,
+  saveSettings,
+} from "./http.js";
 import { DEFAULT_SETTINGS, SUPPORTED_LANGUAGES, TEMPLATE_VARIABLES } from "./options.defaults.js";
 
 const statusEl = document.querySelector("#status");
@@ -10,6 +15,7 @@ const chooseDestinationButton = document.querySelector("#chooseDestination");
 const selectedDestinationField = document.querySelector("#selectedDestinationField");
 const chooseMetadataButton = document.querySelector("#chooseMetadata");
 const clearMetadataButton = document.querySelector("#clearMetadata");
+const testConnectionButton = document.querySelector("#testConnection");
 
 const fields = {
   language: document.querySelector("#language"),
@@ -37,6 +43,7 @@ saveButton.addEventListener("click", save);
 chooseDestinationButton.addEventListener("click", chooseDestination);
 chooseMetadataButton.addEventListener("click", chooseMetadata);
 clearMetadataButton.addEventListener("click", clearMetadata);
+testConnectionButton.addEventListener("click", testConnection);
 formEl.addEventListener("input", () => {
   updateDestinationVisibility();
   validateForm(false);
@@ -45,12 +52,23 @@ formEl.addEventListener("input", () => {
 load();
 
 async function load() {
-  setStatus("Loading settings...");
+  setStatus("Checking VS Code connection...");
   try {
+    const health = await getBridgeHealth();
     const settings = await getSettings();
     fillForm({ ...DEFAULT_SETTINGS, ...settings });
     validateForm(false);
-    setStatus("Settings loaded.");
+    setStatus(`Connected to VS Code ${health.extensionVersion} (protocol ${health.protocolVersion}).`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+async function testConnection() {
+  setStatus("Testing VS Code connection...");
+  try {
+    const health = await getBridgeHealth();
+    setStatus(`Connection healthy: VS Code ${health.extensionVersion}, protocol ${health.protocolVersion}.`);
   } catch (error) {
     setStatus(error.message, true);
   }

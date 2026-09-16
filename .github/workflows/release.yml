@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing stable tag to retry, for example v1.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Test and package tagged commit
+    uses: ./.github/workflows/ci.yml
+    with:
+      release_tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    permissions:
+      contents: read
+
+  publish:
+    name: Publish immutable release assets
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out the exact tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - name: Verify tag and release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse --verify "refs/tags/$RELEASE_TAG"
+          test "$(git rev-list -n 1 "$RELEASE_TAG")" = "$(git rev-parse HEAD)"
+          node scripts/validate-release.mjs --tag "$RELEASE_TAG"
+
+      - name: Download tested packages
+        uses: actions/download-artifact@v5
+        with:
+          name: release-packages
+          path: dist
+
+      - name: Verify downloaded checksums
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS.txt
+
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: |
+            dist/leetcode-helper-chrome.zip
+            dist/leetcode-helper-vscode.vsix
+            dist/SHA256SUMS.txt
+
+      - name: Create or resume draft release
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' 2>/dev/null || true)"
+          if [[ "$existing" == "false" ]]; then
+            echo "Release $RELEASE_TAG is already published and will not be modified." >&2
+            exit 1
+          fi
+          if [[ -z "$existing" ]]; then
+            custom_notes_file=".github/release-notes/$RELEASE_TAG.md"
+            if [[ -f "$custom_notes_file" ]]; then
+              echo "Prepending custom notes from $custom_notes_file"
+              custom_notes="$(cat "$custom_notes_file")"
+              gh release create "$RELEASE_TAG" \
+                --verify-tag \
+                --draft \
+                --latest \
+                --generate-notes \
+                --notes "$custom_notes" \
+                --title "LeetCode Helper $RELEASE_TAG"
+            else
+              echo "No custom notes file found; using generated release notes only."
+              gh release create "$RELEASE_TAG" \
+                --verify-tag \
+                --draft \
+                --latest \
+                --generate-notes \
+                --title "LeetCode Helper $RELEASE_TAG"
+            fi
+          fi
+          gh release upload "$RELEASE_TAG" \
+            dist/leetcode-helper-chrome.zip \
+            dist/leetcode-helper-vscode.vsix \
+            dist/SHA256SUMS.txt \
+            --clobber
+
+      - name: Verify and publish release
+        shell: bash
+        run: |
+          set -euo pipefail
+          assets="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')"
+          for expected in leetcode-helper-chrome.zip leetcode-helper-vscode.vsix SHA256SUMS.txt; do
+            grep -qx "$expected" <<< "$assets"
+          done
+          gh release edit "$RELEASE_TAG" --draft=false --latest

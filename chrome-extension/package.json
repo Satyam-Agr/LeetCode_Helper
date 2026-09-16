@@ -1,0 +1,15 @@
+{
+  "name": "leetcode-template-generator-chrome",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:e2e": "playwright test",
+    "test:all": "npm test && npm run test:e2e",
+    "check": "node --check src/background.js && node --check src/http.js && node --check src/protocol.js && node --check src/leetcodeUrl.js && node --check src/options.js && node --check src/options.defaults.js && node --check src/bg/generator.js && node --check src/bg/poller.js && node --check src/bg/pusher.js && node --check src/bg/inject.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

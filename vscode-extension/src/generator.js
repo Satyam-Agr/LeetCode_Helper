@@ -7,23 +7,38 @@ const { EXTENSIONS, render, cleanPathPart, cleanFileName, findSnippet } = requir
 
 // Generate a solution file from a LeetCode problem URL, and write a ".lch"
 // metadata file alongside it (used later for pushing / resetting).
-async function generateFromUrl(pageUrl, { settingsStore, metaStore, workspaceRoot }) {
+async function generateFromUrl(pageUrl, { settingsStore, metaStore, workspaceRoot, requestId = null, log = () => {} }) {
+  const generationStartedAt = Date.now();
   const slug = extractSlug(pageUrl);
-  const problem = await fetchProblem(slug);
+  log("generation.start", { requestId, slug });
+
+  const fetchStartedAt = Date.now();
+  const problem = await fetchProblem(slug, { log, requestId });
+  log("generation.problem-ready", { requestId, slug, durationMs: Date.now() - fetchStartedAt });
+
   const settings = normalizeSettings(settingsStore.getSettings());
   const { solutionRoot, metadataParent } = await settingsStore.resolveUsablePaths(workspaceRoot);
+  log("generation.paths-resolved", { requestId, slug, solutionRoot, metadataParent });
 
   const built = buildGeneratedFile(problem, settings, solutionRoot);
-  const existed = fs.existsSync(built.path);
+  let existed = fs.existsSync(built.path);
 
   if (!existed) {
     fs.mkdirSync(path.dirname(built.path), { recursive: true });
-    fs.writeFileSync(built.path, built.content, { encoding: "utf8", flag: "wx" });
+    try {
+      fs.writeFileSync(built.path, built.content, { encoding: "utf8", flag: "wx" });
+    } catch (error) {
+      if (error.code === "EEXIST") {
+        existed = true;
+      } else {
+        throw error;
+      }
+    }
   }
+  log(existed ? "generation.file-existing" : "generation.file-created", { requestId, slug, path: built.path });
 
   const canonicalUrl = `https://leetcode.com/problems/${problem.slug}/`;
   const meta = {
-    version: 1,
     url: canonicalUrl,
     slug: problem.slug,
     problemId: problem.id,
@@ -39,13 +54,16 @@ async function generateFromUrl(pageUrl, { settingsStore, metaStore, workspaceRoo
     createdAt: new Date().toISOString(),
   };
   const metaPath = await metaStore.writeMeta(metadataParent, built.path, meta);
+  log("generation.metadata-written", { requestId, slug, metaPath });
 
   if (settings.openAfterCreate) {
+    const openStartedAt = Date.now();
     const document = await vscode.workspace.openTextDocument(built.path);
     await vscode.window.showTextDocument(document, { preview: false });
+    log("generation.editor-opened", { requestId, slug, durationMs: Date.now() - openStartedAt });
   }
 
-  return {
+  const result = {
     status: existed ? "skipped" : "created",
     title: problem.title,
     problemId: problem.id,
@@ -55,6 +73,8 @@ async function generateFromUrl(pageUrl, { settingsStore, metaStore, workspaceRoo
     metaPath,
     url: canonicalUrl,
   };
+  log("generation.complete", { requestId, slug, durationMs: Date.now() - generationStartedAt, status: result.status });
+  return result;
 }
 
 function buildGeneratedFile(problem, settings, solutionRoot) {

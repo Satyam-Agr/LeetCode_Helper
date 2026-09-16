@@ -1,4 +1,4 @@
-// LeetCode URL helpers shared across popup + background.
+// LeetCode URL helpers shared by Chrome extension entry points.
 
 // Throws a user-friendly error if `pageUrl` is not a LeetCode problem page.
 export function validateLeetCodeProblemUrl(pageUrl) {

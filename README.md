@@ -59,6 +59,19 @@ The complete workflow has two directions.
 
 The bridge uses HTTP long-polling instead of a WebSocket. This allows the Chrome extension to communicate with the local VS Code server without relying on an insecure `ws://` connection from a secure LeetCode page.
 
+Reverse pushes use acknowledged delivery: VS Code retains a job until Chrome confirms
+receipt, redelivers an unacknowledged job, and Chrome retries progress/final reports if
+the loopback connection briefly fails. Multiple pending pushes are queued in order.
+
+Before reporting a successful paste, the Chrome worker selects the visible LeetCode
+solution model (rather than the first Monaco model), applies the edit, and reads the
+model back to verify the exact content. Existing and newly opened tabs both wait for
+the editor to finish mounting, and transient remounts are retried.
+
+Before writing, Chrome compares the language recorded in the solution's `.lch`
+metadata with the visible LeetCode Monaco model. If they differ, the push stops and
+leaves the browser editor unchanged.
+
 ---
 
 # 📦 Project Structure
@@ -68,7 +81,6 @@ LeetCode_Helper/
 │
 ├── chrome-extension/
 │   ├── manifest.json
-│   ├── popup.html
 │   ├── options.html
 │   ├── resources/
 │   ├── styles/
@@ -83,7 +95,7 @@ LeetCode_Helper/
 └── README.md
 ```
 
-The Chrome extension contains the MV3 background worker, popup, settings page, browser bridge client, LeetCode URL handling, and injected page functions. The VS Code extension contains the local server, solution generator, metadata store, push queue, sidebar view, and LeetCode integration logic.
+The Chrome extension contains the MV3 background worker, one-click toolbar action, settings page, browser bridge client, LeetCode URL handling, and injected page functions. The VS Code extension contains the local server, solution generator, metadata store, push queue, sidebar view, and LeetCode integration logic.
 
 ---
 
@@ -106,7 +118,7 @@ The VS Code extension can be installed from a `.vsix` package.
 
 Download the latest `.vsix` package from the GitHub Release:
 
-**[⬇️ Download VS Code Extension](https://github.com/Satyam-Agr/LeetCode_Helper/releases/download/v1.0.0/leetcode-template-generator-vscode-1.0.0.vsix)**
+**[⬇️ Download latest VS Code Extension](https://github.com/Satyam-Agr/LeetCode_Helper/releases/latest/download/leetcode-helper-vscode.vsix)**
 
 ### Method A: Install from VSIX
 
@@ -117,13 +129,7 @@ Download the latest `.vsix` package from the GitHub Release:
 5. Select the downloaded:
 
 ```text
-leetcode-template-generator-vscode-<version>.vsix
-```
-
-Example:
-
-```text
-leetcode-template-generator-vscode-0.3.0.vsix
+leetcode-helper-vscode.vsix
 ```
 
 ![Install VS Code extension from VSIX](docs/images/vscode-install-vsix.png)
@@ -133,7 +139,7 @@ leetcode-template-generator-vscode-0.3.0.vsix
 You can also install the package using:
 
 ```bash
-code --install-extension leetcode-template-generator-vscode-0.3.0.vsix
+code --install-extension leetcode-helper-vscode.vsix
 ```
 
 The VS Code extension starts the local browser bridge used by the Chrome extension. The default bridge address is:
@@ -158,12 +164,16 @@ Because the extension is distributed outside the Chrome Web Store, it must curre
 
 Download the latest `.zip` package from the GitHub Release:
 
-**[⬇️ Download Chrome Extension](https://github.com/Satyam-Agr/LeetCode_Helper/releases/download/v1.0.0/chrome-extension.zip)**
+**[⬇️ Download latest Chrome Extension](https://github.com/Satyam-Agr/LeetCode_Helper/releases/latest/download/leetcode-helper-chrome.zip)**
+
+Use this named release asset, not GitHub's automatically generated **Source code**
+archive. The source archive contains the whole repository and cannot be loaded directly
+as the Chrome extension.
 
 ### Step 1: Extract the .zip
 
-Extract the downloaded zip foulder.
-Make sure that the root foulder has the manifest.json.
+Extract the downloaded zip folder.
+Make sure that the root folder has `manifest.json`.
 
 ### Step 2: Open Chrome Extensions
 
@@ -187,13 +197,11 @@ Load unpacked
 
 ### Step 5: Select the Extension Folder
 
-Select the:
+Select the extracted folder that directly contains:
 
 ```text
-chrome-extension/
+manifest.json
 ```
-
-folder.
 
 Make sure the selected folder directly contains:
 
@@ -205,15 +213,26 @@ Do **not** select the repository root if `manifest.json` is inside `chrome-exten
 
 ![Chrome extension installation](docs/images/chrome-install-unpacked.png)
 
-### Step 5: Confirm Installation
+### Step 6: Confirm Installation
 
 After loading the extension, it should appear under **My extensions**.
 
 The extension uses Chrome Manifest V3 and requests the permissions required to access LeetCode tabs, inject the page-side functionality, communicate with the local bridge, and maintain its polling loop.
 
-After installation pin the extenion in your browser as shown in the image: 
+After installation, pin the extension in your browser as shown in the image:
 
-![Pin the extenion](docs/images/chrome-setup-pin.png)
+![Pin the extension](docs/images/chrome-setup-pin.png)
+
+### Step 7: Automatic local pairing
+
+No pairing setup is required. Chrome and VS Code establish authentication automatically
+on the first local request. The Chrome package has a stable extension ID; VS Code issues
+its random 256-bit token only to that extension origin using the matching bridge
+protocol. Chrome keeps the token in its private extension storage and retries the
+original request immediately.
+
+If the token is rotated or Chrome storage is cleared, the same automatic handshake runs
+again. The VS Code diagnostics show only a short fingerprint, never the token itself.
 
 ---
 
@@ -226,13 +245,16 @@ The default address is:
 ```text
 http://127.0.0.1:8765
 ```
-This runs only on the first vs code windoww opened. 
-Make sure that PORT:8765 is free in your system.
+Only one VS Code window owns the port at a time. Other windows wait in the background
+and automatically take over if the current owner closes. Make sure port `8765` is not
+being used by an unrelated application.
 
 The bridge exposes the following routes:
 
 ```text
-POST /generate
+POST /generate  { url, requestId }
+GET  /health
+POST /pair
 GET  /settings
 POST /settings
 POST /choose-destination
@@ -240,7 +262,10 @@ GET  /pull
 POST /push-result
 ```
 
-These routes are used for generation, settings, push queuing, long-polling, and reporting Run/Submit results.
+These routes are used for generation, automatic pairing, settings, push queuing,
+long-polling, and reporting Run/Submit results. `/pair` requires the exact Chrome
+extension origin and current protocol version. All normal operational routes require
+both that protocol version and the resulting random token.
 
 You can start the bridge from the VS Code command palette:
 
@@ -268,9 +293,12 @@ For example:
 https://leetcode.com/problems/two-sum/
 ```
 
-Click the LeetCode Helper Chrome extension.
+Click the LeetCode Helper toolbar icon. Generation starts immediately without opening
+a popup. The page shows a progress/result toast. Success disappears automatically after
+five seconds; failures remain until you dismiss them so important errors are not lost.
 
-The extension sends the current problem URL to the local VS Code bridge.
+The extension sends the current problem URL and a unique request ID to the local VS
+Code bridge. If VS Code is still starting, connection failures are retried automatically.
 
 The VS Code extension then:
 
@@ -522,7 +550,7 @@ The Chrome options page allows you to configure generator settings such as:
 
 The settings are validated before being stored.
 
-It can be accessed by the the options tab in the extenion:
+It can be accessed from the extension's Options page:
 
 ![Access the options tab](docs/images/chrome-options-open.png)
 
@@ -584,6 +612,8 @@ The Chrome background worker holds `GET /pull` open for a limited period and imm
 ```bash
 cd vscode-extension
 npm install
+npm test
+npm run check
 ```
 
 Open the extension folder in VS Code and press:
@@ -600,7 +630,21 @@ Then open a coding workspace inside the Extension Development Host and use the *
 
 ## Chrome Extension
 
-The Chrome extension does not require a build step.
+The Chrome extension does not require a build step. Install its test dependency once,
+then run its unit and real-browser suites:
+
+```bash
+cd chrome-extension
+npm install
+npm test
+npx playwright install chromium
+npm run test:e2e
+```
+
+`npm run test:all` runs both suites. The browser suite loads the actual unpacked
+extension and verifies C++, Java, Python, and JavaScript paste flows, mismatch
+protection, new-tab editor mounting, duplicate-tab selection, Run, and Submit against
+deterministic fixtures.
 
 For development:
 
@@ -618,17 +662,12 @@ The Chrome extension uses Manifest V3 and native JavaScript modules.
 
 # 📦 Packaging the VS Code Extension
 
-To create a distributable VS Code package:
-
-```bash
-npm install -g @vscode/vsce
-```
-
-Then:
+To create a distributable VS Code package using the pinned project dependency:
 
 ```bash
 cd vscode-extension
-vsce package
+npm ci
+npm run package
 ```
 
 This produces a `.vsix` file.
@@ -646,6 +685,25 @@ The VS Code extension's packaging workflow is documented in the project itself.
 
 ---
 
+# 🚀 Automated Releases
+
+Pull requests and updates to `main` run the Chrome and VS Code checks on Windows and
+Linux, plus the installed-extension browser tests on Linux. Stable `vMAJOR.MINOR.PATCH`
+tags build and publish the Chrome ZIP, VSIX, checksums, and build-provenance records.
+
+Both component package versions must match the tag. The bridge protocol number is a
+separate compatibility value and changes only when the Chrome/VS Code wire contract is
+incompatible.
+
+See [RELEASING.md](docs/RELEASING.md) for version preparation, tagging, retry behavior, and
+the one-time GitHub branch/tag protection settings.
+
+Releases can also include a reviewed, version-specific summary and detailed bug-fix or
+upgrade report without losing GitHub's automatic changelog. See the
+[custom release-notes guide](docs/RELEASE_NOTES.md).
+
+---
+
 # 🧭 Quick Start
 
 For a new user, the shortest path is:
@@ -653,16 +711,15 @@ For a new user, the shortest path is:
 ```text
 1. Install the VS Code .vsix
 2. Load chrome-extension/ into Chrome
-3. Start the VS Code Browser Bridge
-4. Open a LeetCode problem
-5. Click the Chrome extension
-6. Start solving in VS Code
-7. Open Push to LeetCode
-8. Choose:
+3. Open a LeetCode problem (pairing happens automatically)
+4. Click the Chrome extension toolbar icon once
+5. Start solving in VS Code
+6. Open Push to LeetCode
+7. Choose:
       Do Nothing
       Run
       Submit
-9. Push the solution
+8. Push the solution
 ```
 
 ---
@@ -681,6 +738,9 @@ and make sure the extension is enabled.
 
 Then verify that the VS Code browser bridge is running.
 
+The toolbar action retries short startup interruptions automatically. An in-page error
+remains visible when the bridge cannot be reached after all retries.
+
 ---
 
 ## VS Code cannot communicate with Chrome
@@ -692,6 +752,48 @@ http://127.0.0.1:8765
 ```
 
 and that the configured port matches between the VS Code and Chrome sides.
+
+Then right-click the Chrome extension, open **Options**, and click **Test connection**.
+The test automatically repairs missing or expired authentication. If it reports an
+extension identity mismatch, reload Chrome from the current `chrome-extension/` folder.
+
+For a complete local report, run **LeetCode Helper: Run Diagnostics** in VS Code. The
+Output panel shows bridge ownership, protocol version, pairing-token fingerprint,
+whether Chrome has polled recently, queue state, current workspace and destinations,
+and the active file's metadata/language. It does not transmit telemetry.
+
+---
+
+## Chrome/VS Code version mismatch
+
+The compatibility number is `BRIDGE_PROTOCOL_VERSION`, currently `3`, in both
+`chrome-extension/src/protocol.js` and `vscode-extension/src/protocol.js`. Those two
+values must match. Change this number only for an incompatible communication/API change,
+not for every bug fix. The normal extension versions in `manifest.json` and
+`package.json` are release numbers; keeping them equal is useful but is not what decides
+whether the bridge can communicate. An automated test fails if the protocol numbers
+drift apart.
+
+If a mismatch is reported, update or reload both extensions from the same project
+release. Incompatible requests are rejected before any file or browser-editor change.
+
+---
+
+## Local authentication boundary
+
+Automatic pairing protects the bridge from ordinary webpages and unrelated Chrome
+extensions by checking the stable LeetCode Helper extension origin before issuing the
+random token. It is not intended to defend against malicious software already running
+as your Windows user, because a native program can construct local HTTP requests and
+spoof headers. Strong protection against that threat would require a manually verified
+secret or a separately installed Chrome Native Messaging host.
+
+---
+
+## Language mismatch when pushing
+
+Select the same language in the LeetCode editor that was used to generate the local
+solution, then push again. The mismatch guard intentionally leaves the editor unchanged.
 
 ---
 

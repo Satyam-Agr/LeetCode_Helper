@@ -12,6 +12,7 @@ class PushViewProvider {
     this.view = null;
     this.currentAction = "none";
     this.currentCodeOnly = true;
+    this.refreshRevision = 0;
   }
 
   resolveWebviewView(webviewView) {
@@ -25,7 +26,7 @@ class PushViewProvider {
       }
       switch (message.type) {
         case "ready":
-          this.refresh();
+          void this.refresh();
           break;
         case "prefs":
           this.currentAction = message.submitAction || "none";
@@ -48,14 +49,33 @@ class PushViewProvider {
       this.view = null;
     });
 
-    this.refresh();
+    void this.refresh();
   }
 
-  refresh() {
+  async refresh() {
+    const revision = ++this.refreshRevision;
     if (!this.view) {
       return;
     }
-    this.view.webview.postMessage({ type: "target", target: this.getPushTarget() });
+    const activeView = this.view;
+    try {
+      const target = await this.getPushTarget();
+      if (revision === this.refreshRevision && this.view === activeView) {
+        await activeView.webview.postMessage({ type: "target", target });
+      }
+    } catch (error) {
+      if (revision === this.refreshRevision && this.view === activeView) {
+        await activeView.webview.postMessage({
+          type: "target",
+          target: {
+            name: null,
+            hasMeta: false,
+            metadataStatus: "invalid",
+            metadataMessage: error.message,
+          },
+        });
+      }
+    }
   }
 
   // Reveal the sidebar view (used by the auto-open flag). Preserves editor focus.

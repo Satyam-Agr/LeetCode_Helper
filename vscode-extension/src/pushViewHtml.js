@@ -165,7 +165,7 @@ function getPushViewHtml() {
             noMetaEl.hidden = false;
             noMetaEl.textContent = "Open a solution file to push it to LeetCode.";
           } else if (!hasMeta) {
-            noMetaEl.textContent = "This file has no LeetCode metadata. Generate it from the Chrome extension first, then reopen this file.";
+            noMetaEl.textContent = target.metadataMessage || "This file has no LeetCode metadata. Generate it from the Chrome extension first, then reopen this file.";
           }
         } else if (message.type === "status") {
           statusEl.textContent = message.status || "";
