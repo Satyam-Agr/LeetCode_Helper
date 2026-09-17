@@ -24,15 +24,30 @@ node scripts/prepare-version.mjs 1.2.0
 Copy-Item .github/release-notes/TEMPLATE.md .github/release-notes/v1.2.0.md
 # Edit .github/release-notes/v1.2.0.md
 node scripts/validate-release.mjs --tag v1.2.0
-git add .github/release-notes/v1.2.0.md
-git commit -m "Release 1.2.0"
-git tag v1.2.0
-git push origin main v1.2.0
+git add .
+git commit -m "Prepare release 1.2.0"
+git push origin main
+# Wait for the main CI run to pass, then:
+git tag -a v1.2.0 -m "LeetCode Helper v1.2.0"
+git push origin v1.2.0
 ```
 
 The validator rejects an empty file, common template placeholders, files larger than
 64 KiB, and any tag/package version mismatch. If the version-specific file is absent,
 the release remains valid and uses automatic notes only.
+
+A quicker version of the command to run the CI/CD pipeline together is:-
+
+```powershell
+node scripts/prepare-version.mjs 1.2.0
+Copy-Item .github/release-notes/TEMPLATE.md .github/release-notes/v1.2.0.md
+# Edit .github/release-notes/v1.2.0.md
+node scripts/validate-release.mjs --tag v1.2.0
+git add .
+git commit -m "Release 1.2.0"
+git tag v1.2.0
+git push origin main v1.2.0
+```
 
 ## What is automatic
 
